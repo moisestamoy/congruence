@@ -10,6 +10,7 @@ import { cn } from '../../utils/cn';
 
 import { IdentityProtocolWizard } from './IdentityProtocolWizard';
 import { Habit } from '../../types';
+import { useGameStore } from '../gamification/useGameStore'; // Import GameStore
 
 export default function HabitsPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -79,6 +80,22 @@ export default function HabitsPage() {
     const handleEditHabit = (habit: Habit) => {
         setEditingHabit(habit);
         setIsFormOpen(true);
+    };
+
+    // Handler for toggling habit (+ Points Logic)
+    const handleToggleHabit = (habitId: string) => {
+        const habit = habits.find(h => h.id === habitId);
+        if (!habit) return;
+
+        const isCompleted = !!habit.logs[selectedDate]?.completed;
+
+        // If it was NOT completed, and we are toggling -> It becomes completed -> Award Points
+        if (!isCompleted) {
+            useGameStore.getState().addPoints(10, `Hábito completado: ${habit.title}`);
+            // Optional: Trigger a sound or confetti here later
+        }
+
+        toggleHabit(habitId, selectedDate);
     };
 
     return (
@@ -174,7 +191,8 @@ export default function HabitsPage() {
                                                 habit={habit}
                                                 isCompleted={!!habit.logs[selectedDate]?.completed}
                                                 currentValue={habit.logs[selectedDate]?.value || 0}
-                                                onToggle={() => toggleHabit(habit.id, selectedDate)}
+                                                currentValue={habit.logs[selectedDate]?.value || 0}
+                                                onToggle={() => handleToggleHabit(habit.id)}
                                                 onValueChange={(val) => setHabitValue(habit.id, selectedDate, val)}
                                                 onEdit={() => handleEditHabit(habit)}
                                             />
@@ -281,7 +299,8 @@ export default function HabitsPage() {
                                                 habit={habit}
                                                 isCompleted={!!habit.logs[selectedDate]?.completed}
                                                 currentValue={habit.logs[selectedDate]?.value || 0}
-                                                onToggle={() => toggleHabit(habit.id, selectedDate)}
+                                                currentValue={habit.logs[selectedDate]?.value || 0}
+                                                onToggle={() => handleToggleHabit(habit.id)}
                                                 onValueChange={(val) => setHabitValue(habit.id, selectedDate, val)}
                                                 onEdit={() => handleEditHabit(habit)}
                                             />
