@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useHabitStore } from '../habits/useHabitStore';
 import { useFinanceStore } from '../finance/useFinanceStore';
-import { Loader2, Check, CloudOff, Save } from 'lucide-react';
+import { Loader2, CloudOff } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export function SupabaseSync() {

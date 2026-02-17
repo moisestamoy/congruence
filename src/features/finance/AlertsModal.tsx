@@ -1,5 +1,5 @@
 import { X, AlertTriangle, AlertCircle, Info } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../../utils/cn';
@@ -11,7 +11,7 @@ interface AlertsModalProps {
 
 export function AlertsModal({ onClose, monthsData }: AlertsModalProps) {
     // Scan for alerts
-    const alerts = [];
+    const alerts: any[] = [];
 
     monthsData.forEach(month => {
         month.days.forEach((day: any) => {

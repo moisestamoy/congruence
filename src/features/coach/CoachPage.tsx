@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Brain, Check, RefreshCw, MessageSquare } from 'lucide-react';
+import { Sparkles, Brain, RefreshCw } from 'lucide-react';
 import { useFinanceStore } from '../../features/finance/useFinanceStore';
 import { useHabitStore } from '../../features/habits/useHabitStore';
 import { DailyInsight, AIService } from '../../services/ai';
@@ -8,10 +8,10 @@ import { cn } from '../../utils/cn';
 
 export default function CoachPage() {
     const { habits } = useHabitStore();
-    const { realExpenses, config } = useFinanceStore();
+    const { realExpenses } = useFinanceStore();
     const [insight, setInsight] = useState<DailyInsight | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [showChat, setShowChat] = useState(false); // Future: Expand to chat
+
 
     const generateInsight = async () => {
         setIsLoading(true);
