@@ -8,6 +8,7 @@ import HabitsPage from './features/habits/HabitsPage';
 import FinancesPage from './features/finance/FinancesPage';
 import StatsPage from './features/stats/StatsPage';
 import CoachPage from './features/coach/CoachPage';
+import StorePage from './features/gamification/StorePage';
 
 function App() {
     return (
