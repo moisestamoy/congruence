@@ -23,7 +23,7 @@ export const AIService = {
      * @param finances Recent financial transactions (last 7 days)
      * @param userName Name of the user (e.g. "Moises")
      */
-    generateInsight: async (habits: any[], finances: any[], userName: string = 'Usuario'): Promise<DailyInsight> => {
+    generateInsight: async (habits: any[], _finances: any[], userName: string = 'Usuario'): Promise<DailyInsight> => {
         try {
             // Simplify data to send to LLM (reduce token usage)
             const habitSummary = habits.map(h => ({ name: h.name, logic: h.completedDays?.length || 0 })).map(h => `${h.name}: ${h.logic} times`).join(', ');
