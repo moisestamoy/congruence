@@ -191,7 +191,6 @@ export default function HabitsPage() {
                                                 habit={habit}
                                                 isCompleted={!!habit.logs[selectedDate]?.completed}
                                                 currentValue={habit.logs[selectedDate]?.value || 0}
-                                                currentValue={habit.logs[selectedDate]?.value || 0}
                                                 onToggle={() => handleToggleHabit(habit.id)}
                                                 onValueChange={(val) => setHabitValue(habit.id, selectedDate, val)}
                                                 onEdit={() => handleEditHabit(habit)}
