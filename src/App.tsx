@@ -6,8 +6,8 @@ import './i18n/config';
 
 import HabitsPage from './features/habits/HabitsPage';
 import FinancesPage from './features/finance/FinancesPage';
-import ToDoPage from './features/tasks/ToDoPage';
 import StatsPage from './features/stats/StatsPage';
+import CoachPage from './features/coach/CoachPage';
 
 function App() {
     return (
@@ -17,8 +17,8 @@ function App() {
                     <Route element={<MainLayout />}>
                         <Route path="/" element={<HabitsPage />} />
                         <Route path="/finances" element={<FinancesPage />} />
-                        <Route path="/todo" element={<ToDoPage />} />
                         <Route path="/stats" element={<StatsPage />} />
+                        <Route path="/coach" element={<CoachPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                 </Routes>

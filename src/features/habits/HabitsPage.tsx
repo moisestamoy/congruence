@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutTemplate, Monitor, User } from 'lucide-react';
+import { LayoutTemplate, Monitor, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CongruenceLevelIndicator } from './CongruenceLevelIndicator';
 import { HabitCard } from './HabitCard';
 import { HabitForm } from './HabitForm';
 import { useHabitStore } from './useHabitStore';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { cn } from '../../utils/cn';
 
 import { IdentityProtocolWizard } from './IdentityProtocolWizard';
@@ -16,9 +16,14 @@ export default function HabitsPage() {
     const [isIdentityBuilderOpen, setIsIdentityBuilderOpen] = useState(false);
     const [layoutView, setLayoutView] = useState<'split' | 'central'>('split');
     const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+    const [currentDate, setCurrentDate] = useState(new Date());
+
+    const navigateDate = (days: number) => {
+        setCurrentDate(prev => addDays(prev, days));
+    };
 
     // --- GAMIFICATION STATE (Dev) ---
-    const [userStreak, setUserStreak] = useState(0);
+    const [userStreak] = useState(0);
 
     // --- GAMIFICATION LOGIC ---
     // Level 1 (Base): 0 - 13 days
@@ -28,9 +33,7 @@ export default function HabitsPage() {
     // Level 5 (Diamond): 200 - 364 days
     // Level 6 (Cosmic): 365+ days
 
-    // "Hidden" Logic: 3 strikes per level allowed before consequence (reset/downgrade)
-    const MAX_FAILURES_PER_LEVEL = 3;
-    const [failures] = useState<number>(0);
+
 
     const calculateLevel = (streak: number) => {
         if (streak >= 365) return 6;
@@ -57,7 +60,7 @@ export default function HabitsPage() {
 
     const { habits, getCongruence, toggleHabit, setHabitValue, manifesto } = useHabitStore();
 
-    const selectedDate = format(new Date(), 'yyyy-MM-dd');
+    const selectedDate = format(currentDate, 'yyyy-MM-dd');
     const congruence = getCongruence(selectedDate);
     const sortedHabits = [...habits].sort((a, b) => {
         const aCompleted = !!a.logs[selectedDate]?.completed;
@@ -84,23 +87,7 @@ export default function HabitsPage() {
             {/* Ambient Background Glow */}
             <div className={cn("absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 pointer-events-none transition-all duration-1000", getAmbientGlow())} />
 
-            {/* DEV CONTROLS: Streak Simulator */}
-            <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2 p-4 bg-black/80 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
-                    Simular Racha: <span className="text-white text-base">{userStreak} días</span>
-                </label>
-                <input
-                    type="range"
-                    min="0"
-                    max="400"
-                    value={userStreak}
-                    onChange={(e) => setUserStreak(Number(e.target.value))}
-                    className="w-48 accent-white cursor-pointer"
-                />
-                <div className="text-[10px] text-neutral-600 font-mono mt-1">
-                    Lvl: {currentLevel} | Strikes: {failures}/{MAX_FAILURES_PER_LEVEL}
-                </div>
-            </div>
+
 
             {/* HEADER ACTIONS */}
             <div className="absolute top-8 right-8 z-40 flex gap-4">
@@ -160,7 +147,24 @@ export default function HabitsPage() {
                                         <h2 className="text-2xl lg:text-3xl font-bold tracking-tight text-white drop-shadow-md mb-1">Tu Hábito</h2>
                                         <p className="text-cyan-400 text-xs lg:text-sm font-bold uppercase tracking-widest leading-none">Panel de Control</p>
                                     </div>
-                                    <span className="text-xs lg:text-sm text-neutral-400 font-mono tracking-wider py-1 px-3 rounded-full border border-white/10 bg-white/5">{format(new Date(), 'dd MMM yyyy')}</span>
+                                    <div className="flex items-center gap-2 bg-white/5 rounded-full p-1 border border-white/10">
+                                        <button
+                                            onClick={() => navigateDate(-1)}
+                                            className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <span className="text-xs lg:text-sm text-neutral-200 font-mono tracking-wider px-2 font-bold min-w-[100px] text-center">
+                                            {format(currentDate, 'dd MMM yyyy')}
+                                        </span>
+                                        <button
+                                            onClick={() => navigateDate(1)}
+                                            className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                                            disabled={format(currentDate, 'yyyy-MM-dd') >= format(new Date(), 'yyyy-MM-dd')}
+                                        >
+                                            <ChevronRight size={16} className={cn(format(currentDate, 'yyyy-MM-dd') >= format(new Date(), 'yyyy-MM-dd') ? "opacity-30" : "")} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-2 custom-scrollbar flex-1 relative z-10 content-start">
@@ -249,6 +253,24 @@ export default function HabitsPage() {
                                         <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]" />
                                         HÁBITOS
                                     </h2>
+                                    <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 border border-white/10">
+                                        <button
+                                            onClick={() => navigateDate(-1)}
+                                            className="p-1 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                                        >
+                                            <ChevronLeft size={14} />
+                                        </button>
+                                        <span className="text-[10px] text-neutral-200 font-mono tracking-wider px-1.5 font-bold min-w-[60px] text-center">
+                                            {format(currentDate, 'dd MMM')}
+                                        </span>
+                                        <button
+                                            onClick={() => navigateDate(1)}
+                                            className="p-1 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                                            disabled={format(currentDate, 'yyyy-MM-dd') >= format(new Date(), 'yyyy-MM-dd')}
+                                        >
+                                            <ChevronRight size={14} className={cn(format(currentDate, 'yyyy-MM-dd') >= format(new Date(), 'yyyy-MM-dd') ? "opacity-30" : "")} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* List */}

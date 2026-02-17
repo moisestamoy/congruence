@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { format, addMonths, parseISO, isSameMonth } from 'date-fns';
+import { format, addMonths, parseISO, isSameMonth, differenceInCalendarDays, endOfMonth, startOfToday } from 'date-fns';
 import { es, enUS, pt } from 'date-fns/locale';
 import { useFinanceStore } from './useFinanceStore';
 import { DailyProjectionEngine } from './DailyProjectionEngine';
@@ -13,7 +13,7 @@ import { CashFlowChart } from './CashFlowChart';
 import { CategoryBreakdownWidget } from './CategoryBreakdownWidget';
 import { DayDetailsModal } from './DayDetailsModal';
 import { BudgetModal } from './BudgetModal';
-import { differenceInCalendarDays, endOfMonth, startOfToday } from 'date-fns';
+import { AlertsModal } from './AlertsModal';
 
 export default function FinancesPage() {
     const { i18n } = useTranslation();
@@ -21,14 +21,18 @@ export default function FinancesPage() {
 
     // Force 2 months view for this specific "Dashboard" requirement
     const [horizon, setHorizon] = useState<number>(2);
-    const [currentDate] = useState(new Date());
+    // Modified to allow navigation
+    const [currentDate, setCurrentDate] = useState(new Date());
+
+    const navigateMonth = (direction: number) => {
+        setCurrentDate(prev => addMonths(prev, direction));
+    };
 
     // UI State
     const [isGoalsOpen, setIsGoalsOpen] = useState(false);
     const [isBudgetOpen, setIsBudgetOpen] = useState(false);
+    const [isAlertsOpen, setIsAlertsOpen] = useState(false);
     const [expandedDay, setExpandedDay] = useState<string | null>(null);
-    // Legacy txModal state kept for direct access if needed, or we route everything through DayDetails?
-    // User requested "Editing". The DayDetails is the hub for that.
     const [txModal, setTxModal] = useState<{ isOpen: boolean; type: 'income' | 'expense'; date: string }>({ isOpen: false, type: 'income', date: '' });
     const [dayDetailsDate, setDayDetailsDate] = useState<string | null>(null);
 
@@ -79,19 +83,64 @@ export default function FinancesPage() {
 
 
     // --- STATS DATA (Bottom Section) ---
-    const totalIncome = projections.reduce((sum, d) => sum + d.income, 0);
-    const totalExpenses = projections.reduce((sum, d) => sum + d.totalExpense, 0);
+    // Calculate totals based on the VIEWED month (currentDate), not the whole horizon
+    const displayedMonthData = monthsData.find((m: any) => isSameMonth(m.date, currentDate))?.days || [];
+
+    // Calculate aggregated categories for the displayed month
+    const { monthIncome, monthExpenses, categoryBreakdown } = useMemo(() => {
+        let inc = 0;
+        let exp = 0;
+        const catMap: Record<string, number> = {};
+
+        displayedMonthData.forEach(day => {
+            // 1. Income (from Events)
+            const dayEvents = events.filter(e => e.date === day.date);
+
+            dayEvents.filter(e => e.type === 'income').forEach(e => {
+                inc += e.amount;
+            });
+
+            // 2. Fixed Expenses (from Events)
+            dayEvents.filter(e => e.type === 'expense').forEach(e => {
+                exp += e.amount;
+                const cat = e.category || 'Fijos';
+                catMap[cat] = (catMap[cat] || 0) + e.amount;
+            });
+
+            // 3. Variable Expenses
+            if (day.realExpense > 0) {
+                const dayReal = realExpenses.filter(e => e.date === day.date);
+                dayReal.forEach(e => {
+                    exp += e.amount;
+                    const cat = e.category || 'Variables';
+                    catMap[cat] = (catMap[cat] || 0) + e.amount;
+                });
+            } else {
+                // Otherwise custom plan/override
+                exp += day.plannedExpense;
+                catMap['Ajuste diario'] = (catMap['Ajuste diario'] || 0) + day.plannedExpense;
+            }
+        });
+
+        // Format for Chart
+        const colors = ['#6366f1', '#f59e0b', '#3b82f6', '#ef4444', '#f97316', '#a855f7', '#10b981', '#ec4899'];
+        const breakdown = Object.entries(catMap)
+            .map(([name, value], idx) => ({
+                name,
+                value,
+                color: colors[idx % colors.length]
+            }))
+            .sort((a, b) => b.value - a.value);
+
+        return { monthIncome: inc, monthExpenses: exp, categoryBreakdown: breakdown };
+    }, [displayedMonthData, events, realExpenses]);
+
+    // Use computed values instead of global projections
+    const totalIncome = monthIncome;
+    const totalExpenses = monthExpenses;
     const netFlow = totalIncome - totalExpenses;
 
-    // Mock category data to match comparison image (engine doesn't fully categorize properly yet)
-    const categoryData = [
-        { name: 'Inversión en mentoría', value: 1311, color: '#6366f1' }, // Indigo
-        { name: 'Alquiler', value: 850, color: '#f59e0b' }, // Amber
-        { name: 'Ajuste diario', value: 271, color: '#3b82f6' }, // Blue
-        { name: 'Comida', value: 118, color: '#ef4444' }, // Red
-        { name: 'Supermercado', value: 100, color: '#f97316' }, // Orange
-        { name: 'Ocio', value: 75, color: '#a855f7' }, // Purple
-    ];
+    const categoryData = categoryBreakdown;
 
     // Savings Calculations
     const currentYear = new Date().getFullYear();
@@ -130,7 +179,6 @@ export default function FinancesPage() {
             <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 relative z-10 space-y-8">
 
                 {/* 1. FINANCIAL COMMAND CENTER HEADER */}
-                {/* 1. FINANCIAL COMMAND CENTER HEADER */}
                 <div className="space-y-8">
                     {/* Title & Actions */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -138,34 +186,24 @@ export default function FinancesPage() {
                             <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-2">Finanzas</h1>
                             <p className="text-neutral-400 font-medium">Panel de Control & Proyección</p>
                         </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setIsBudgetOpen(true)}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-cyan-950/30 hover:bg-cyan-900/40 text-cyan-400 rounded-xl font-bold uppercase tracking-wider text-xs border border-cyan-900/30 transition-all active:scale-[0.98]"
-                            >
-                                <Calculator size={16} /> Presupuesto
-                            </button>
-                            <button
-                                onClick={() => setIsGoalsOpen(true)}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl font-bold uppercase tracking-wider text-xs border border-white/10 transition-all active:scale-[0.98]"
-                            >
-                                <Target size={16} /> Metas
-                            </button>
-                        </div>
+
                     </div>
 
                     {/* Summary Widgets Grid (4 Columns) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        {/* Ingresos Totales */}
                         <div className="p-3 rounded-2xl bg-[#0a0a0a] border border-white/5 shadow-xl relative overflow-hidden group hover:border-white/10 transition-colors">
                             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent" />
                             <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest relative z-10">Ingresos Totales</span>
                             <div className="text-xl font-bold font-mono text-emerald-400 mt-1 relative z-10">€{totalIncome.toLocaleString()}</div>
                         </div>
+                        {/* Gastos Totales */}
                         <div className="p-3 rounded-2xl bg-[#0a0a0a] border border-white/5 shadow-xl relative overflow-hidden group hover:border-white/10 transition-colors">
                             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent" />
                             <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest relative z-10">Gastos Totales</span>
                             <div className="text-xl font-bold font-mono text-rose-400 mt-1 relative z-10">€{Math.abs(totalExpenses).toLocaleString()}</div>
                         </div>
+                        {/* Flujo Neto */}
                         <div className="p-3 rounded-2xl bg-[#0a0a0a] border border-white/5 shadow-xl relative overflow-hidden group hover:border-white/10 transition-colors">
                             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent" />
                             <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest relative z-10">Flujo Neto</span>
@@ -185,50 +223,89 @@ export default function FinancesPage() {
                     </div>
                 </div>
 
+                {/* 3. CONTROL BAR (Floating & Unified) */}
+                <div className="sticky top-4 z-40 bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/10 p-2 rounded-[24px] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-full">
 
-
-                {/* 3. MAIN DATA TABLE */}
-                <div className="flex justify-between items-center">
-                    {/* HORIZON SELECTOR */}
-                    <div className="flex items-center gap-1 p-1 bg-white/5 rounded-full border border-white/5">
-                        {[1, 2, 3, 4, 12].map(m => (
+                    {/* LEFT: Date Navigation & Horizon */}
+                    <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+                        {/* Date Nav */}
+                        <div className="flex items-center bg-[#151515] rounded-2xl border border-white/5 p-1">
                             <button
-                                key={m}
-                                onClick={() => setHorizon(m)}
-                                className={cn(
-                                    "px-5 py-2 rounded-full text-[10px] font-bold transition-all uppercase tracking-widest",
-                                    horizon === m
-                                        ? "bg-white text-black shadow-lg"
-                                        : "text-neutral-500 hover:text-white hover:bg-white/5"
-                                )}
+                                onClick={() => navigateMonth(-1)}
+                                className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
                             >
-                                {m} {m === 1 ? 'Mes' : 'Meses'}
+                                <ChevronUp className="-rotate-90" size={16} />
                             </button>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        {/* ALERTS MINI */}
-                        <div className="flex items-center gap-4 px-4 py-2 rounded-full border border-blue-900/30 bg-blue-950/10 text-blue-400 text-xs font-bold mr-4">
-                            <Info size={14} />
-                            <span>2 alertas activas</span>
+                            <span className="px-4 text-xs font-bold uppercase tracking-wider min-w-[140px] text-center text-neutral-200">
+                                {format(currentDate, 'MMM yyyy', { locale: dateLocale })}
+                                {horizon > 1 && ` - ${format(addMonths(currentDate, horizon - 1), 'MMM yyyy', { locale: dateLocale })}`}
+                            </span>
+                            <button
+                                onClick={() => navigateMonth(1)}
+                                className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                            >
+                                <ChevronUp className="rotate-90" size={16} />
+                            </button>
                         </div>
 
+                        {/* Separator */}
+                        <div className="w-px h-6 bg-white/10 mx-2 hidden md:block" />
+
+                        {/* Horizon Selector (Pill Style) */}
+                        <div className="flex items-center bg-[#151515] rounded-2xl border border-white/5 p-1 gap-1">
+                            {[1, 2, 3, 4, 12].map(m => (
+                                <button
+                                    key={m}
+                                    onClick={() => setHorizon(m)}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all uppercase tracking-widest min-w-[32px]",
+                                        horizon === m
+                                            ? "bg-white text-black shadow-lg scale-105"
+                                            : "text-neutral-500 hover:text-white hover:bg-white/5"
+                                    )}
+                                >
+                                    {m === 1 && '1M'}
+                                    {m === 2 && '2M'}
+                                    {m === 3 && '3M'}
+                                    {m === 4 && '4M'}
+                                    {m === 12 && '1A'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* RIGHT: Actions */}
+                    <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                        {/* Alerts (Subtle) */}
                         <button
-                            onClick={() => setIsGoalsOpen(true)}
-                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-black border border-emerald-400 text-xs font-bold uppercase tracking-widest hover:bg-emerald-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                            onClick={() => setIsAlertsOpen(true)}
+                            className="hidden md:flex items-center gap-2 px-3 py-2 text-blue-400/50 hover:text-blue-400 transition-colors cursor-pointer"
+                            title="Ver alertas"
                         >
-                            <Target size={16} /> METAS
+                            <div className="relative">
+                                <Info size={18} />
+                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                            </div>
                         </button>
+
+                        <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 
                         <button
                             onClick={() => setIsBudgetOpen(true)}
-                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-500/30 text-xs font-bold uppercase tracking-widest hover:bg-cyan-900/50 hover:border-cyan-400 transition-all"
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-bold uppercase tracking-widest hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-all"
                         >
-                            <Calculator size={16} /> Presupuesto
+                            <Calculator size={14} /> Presupuesto
+                        </button>
+
+                        <button
+                            onClick={() => setIsGoalsOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-black border border-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                        >
+                            <Target size={14} /> Metas
                         </button>
                     </div>
                 </div>
+
             </div>
 
             {/* DESKTOP: PRO SPREADSHEET (Hidden on Mobile) */}
@@ -527,7 +604,7 @@ export default function FinancesPage() {
                         totalIncome={totalIncome}
                         totalExpenses={totalExpenses}
                         categories={categoryData}
-                        monthLabel={format(addMonths(new Date(), 0), 'MMM yy', { locale: dateLocale })}
+                        monthLabel={format(currentDate, 'MMM yyyy', { locale: dateLocale })}
                     />
 
                     {/* Savings Summary Widget (1/3) */}
@@ -596,6 +673,10 @@ export default function FinancesPage() {
 
             {isBudgetOpen && (
                 <BudgetModal onClose={() => setIsBudgetOpen(false)} />
+            )}
+
+            {isAlertsOpen && (
+                <AlertsModal onClose={() => setIsAlertsOpen(false)} monthsData={monthsData} />
             )}
 
             {dayDetailsDate && (
